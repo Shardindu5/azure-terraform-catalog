@@ -1,0 +1,9 @@
+resource_group_name  = "rg-tfstate-shared-01"
+storage_account_name = "sttfstatebackend01"
+container_name       = "tfstate"
+key                  = "provisioning-engine/dev.terraform.tfstate"
+use_azuread_auth     = true
+use_oidc             = true
+tenant_id            = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+client_id            = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+subscription_id      = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
