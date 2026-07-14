@@ -1,129 +1,105 @@
-name: apply-manual
+name: Provision Azure Resource
+
+# Use the request_id in the visible title so the webhook can correlate back
+run-name: "${{ github.event.inputs.request_id }} • ${{ github.event.inputs.template_key }} • ${{ github.event.inputs.environment }}"
 
 on:
   workflow_dispatch:
     inputs:
       request_id:
-        description: "Provisioning request ID"
+        description: "Request ID from Provisioning Engine"
         required: true
-        type: string
       template_key:
-        description: "Template key"
+        description: "resource-group | vm-linux | storage-account | aks"
         required: true
-        type: choice
-        options:
-          - resource-group
-          - vm-linux
-          - storage-account
-          - aks
       subscription_id:
-        description: "Azure subscription ID"
+        description: "Target Azure subscription ID"
         required: true
-        type: string
       environment:
-        description: "Target environment"
+        description: "dev | test | stage | prod"
         required: true
-        type: choice
-        options:
-          - dev
-          - test
-          - stage
-          - prod
       location:
-        description: "Azure location"
+        description: "Azure region"
         required: true
-        type: choice
-        options:
-          - centralindia
-          - eastus
-          - westeurope
       resource_group_name:
-        description: "Resource group name"
         required: true
-        type: string
       resource_name:
-        description: "Resource name"
         required: true
-        type: string
       sku_or_size:
-        description: "SKU or VM size"
         required: true
-        type: string
       owner:
-        description: "Owner"
         required: true
-        type: string
       cost_center:
-        description: "Cost center"
         required: true
-        type: string
       payload_json:
-        description: "Full JSON payload"
-        required: true
-        type: string
+        description: "Full JSON payload of the request"
+        required: false
 
 permissions:
+  id-token: write   # required for OIDC federated login
   contents: read
-  id-token: write
+  actions: read
+
+env:
+  ARM_USE_OIDC: "true"
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ github.event.inputs.subscription_id }}
 
 jobs:
-  deploy:
+  terraform:
+    name: Terraform apply
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+
+    defaults:
+      run:
+        working-directory: terraform
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Show request
-        run: |
-          echo "Request ID: ${{ inputs.request_id }}"
-          echo "Template:   ${{ inputs.template_key }}"
-          echo "Environment:${{ inputs.environment }}"
-          echo "Location:   ${{ inputs.location }}"
-          echo "Payload:    ${{ inputs.payload_json }}"
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Azure Login (OIDC)
+      - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ inputs.subscription_id }}
+          subscription-id: ${{ github.event.inputs.subscription_id }}
 
-      - name: Create backend.hcl
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
         run: |
-          cat > backend.hcl <<EOF
-          resource_group_name  = "${{ vars.TFSTATE_RESOURCE_GROUP }}"
-          storage_account_name = "${{ vars.TFSTATE_STORAGE_ACCOUNT }}"
-          container_name       = "${{ vars.TFSTATE_CONTAINER }}"
-          key                  = "requests/${{ inputs.environment }}/${{ inputs.request_id }}.terraform.tfstate"
-          use_azuread_auth     = true
-          use_oidc             = true
-          tenant_id            = "${{ secrets.AZURE_TENANT_ID }}"
-          client_id            = "${{ secrets.AZURE_CLIENT_ID }}"
-          subscription_id      = "${{ inputs.subscription_id }}"
-          EOF
+          terraform plan -out=tfplan \
+            -var="template_key=${{ github.event.inputs.template_key }}" \
+            -var="subscription_id=${{ github.event.inputs.subscription_id }}" \
+            -var="environment=${{ github.event.inputs.environment }}" \
+            -var="location=${{ github.event.inputs.location }}" \
+            -var="resource_group_name=${{ github.event.inputs.resource_group_name }}" \
+            -var="resource_name=${{ github.event.inputs.resource_name }}" \
+            -var="sku_or_size=${{ github.event.inputs.sku_or_size }}" \
+            -var="owner=${{ github.event.inputs.owner }}" \
+            -var="cost_center=${{ github.event.inputs.cost_center }}" \
+            -var="request_id=${{ github.event.inputs.request_id }}"
 
-      - name: Terraform Init
-        run: terraform init -backend-config=backend.hcl
-
-      - name: Terraform Plan
-        run: |
-          terraform plan \
-            -out=tfplan \
-            -var="template_key=${{ inputs.template_key }}" \
-            -var="subscription_id=${{ inputs.subscription_id }}" \
-            -var="location=${{ inputs.location }}" \
-            -var="environment=${{ inputs.environment }}" \
-            -var="resource_group_name=${{ inputs.resource_group_name }}" \
-            -var="resource_name=${{ inputs.resource_name }}" \
-            -var="sku_or_size=${{ inputs.sku_or_size }}" \
-            -var="owner=${{ inputs.owner }}" \
-            -var="cost_center=${{ inputs.cost_center }}" \
-            -var='tags={"application":"provisioning-engine","owner":"${{ inputs.owner }}","environment":"${{ inputs.environment }}"}'
-
-      - name: Terraform Apply
+      - name: Terraform apply
         run: terraform apply -auto-approve tfplan
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Provisioning Result" >> $GITHUB_STEP_SUMMARY
+          echo "- Request: ${{ github.event.inputs.request_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Template: ${{ github.event.inputs.template_key }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment: ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Resource: ${{ github.event.inputs.resource_name }}" >> $GITHUB_STEP_SUMMARY
+          
