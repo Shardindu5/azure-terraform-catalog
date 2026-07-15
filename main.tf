@@ -5,13 +5,13 @@ locals {
     environment = var.environment
     managed_by  = "terraform"
     platform    = "provisioning-engine"
+    request_id  = var.request_id
   })
 }
 
 module "resource_group" {
   source = "./modules/resource-group"
-
-  count = var.template_key == "resource-group" ? 1 : 0
+  count  = var.template_key == "resource-group" ? 1 : 0
 
   resource_group_name = var.resource_group_name
   location            = var.location
@@ -20,8 +20,7 @@ module "resource_group" {
 
 module "vm_linux" {
   source = "./modules/vm-linux"
-
-  count = var.template_key == "vm-linux" ? 1 : 0
+  count  = var.template_key == "vm-linux" ? 1 : 0
 
   resource_group_name = var.resource_group_name
   location            = var.location
@@ -33,21 +32,19 @@ module "vm_linux" {
 
 module "storage_account" {
   source = "./modules/storage-account"
+  count  = var.template_key == "storage-account" ? 1 : 0
 
-  count = var.template_key == "storage-account" ? 1 : 0
-
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  storage_account_name = var.resource_name
-  account_tier         = "Standard"
+  resource_group_name      = var.resource_group_name
+  location                 = var.location
+  storage_account_name     = var.resource_name
+  account_tier             = "Standard"
   account_replication_type = replace(var.sku_or_size, "Standard_", "")
-  tags                 = local.common_tags
+  tags                     = local.common_tags
 }
 
 module "aks" {
   source = "./modules/aks"
-
-  count = var.template_key == "aks" ? 1 : 0
+  count  = var.template_key == "aks" ? 1 : 0
 
   resource_group_name = var.resource_group_name
   location            = var.location
@@ -58,8 +55,8 @@ module "aks" {
 
 locals {
   resource_id = (
-    var.template_key == "resource-group" ? module.resource_group[0].resource_group_id :
-    var.template_key == "vm-linux" ? module.vm_linux[0].vm_id :
+    var.template_key == "resource-group"  ? module.resource_group[0].resource_group_id  :
+    var.template_key == "vm-linux"        ? module.vm_linux[0].vm_id                    :
     var.template_key == "storage-account" ? module.storage_account[0].storage_account_id :
     module.aks[0].aks_id
   )

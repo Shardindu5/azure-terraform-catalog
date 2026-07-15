@@ -34,6 +34,11 @@ variable "cost_center" {
   type = string
 }
 
+variable "request_id" {  
+  type    = string  
+  default = ""
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

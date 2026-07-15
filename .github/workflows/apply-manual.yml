@@ -1,7 +1,6 @@
 name: Provision Azure Resource
 
-# Use the request_id in the visible title so the webhook can correlate back
-run-name: "${{ github.event.inputs.request_id }} • ${{ github.event.inputs.template_key }} • ${{ github.event.inputs.environment }}"
+run-name: "${{ inputs.request_id }} • ${{ inputs.template_key }} • ${{ inputs.environment }}"
 
 on:
   workflow_dispatch:
@@ -36,7 +35,7 @@ on:
         required: false
 
 permissions:
-  id-token: write   # required for OIDC federated login
+  id-token: write
   contents: read
   actions: read
 
@@ -44,16 +43,12 @@ env:
   ARM_USE_OIDC: "true"
   ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
   ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-  ARM_SUBSCRIPTION_ID: ${{ github.event.inputs.subscription_id }}
+  ARM_SUBSCRIPTION_ID: ${{ inputs.subscription_id }}
 
 jobs:
   terraform:
     name: Terraform apply
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: terraform
 
     steps:
       - name: Checkout code
@@ -64,15 +59,26 @@ jobs:
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ github.event.inputs.subscription_id }}
+          subscription-id: ${{ inputs.subscription_id }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.5
+          terraform_wrapper: false
 
       - name: Terraform init
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TFSTATE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TFSTATE_SA }}" \
+            -backend-config="container_name=${{ secrets.TFSTATE_CONTAINER }}" \
+            -backend-config="key=provisioning-engine/${{ inputs.environment }}/${{ inputs.request_id }}.tfstate" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.TFSTATE_SUBSCRIPTION_ID }}"
 
       - name: Terraform validate
         run: terraform validate
@@ -80,16 +86,16 @@ jobs:
       - name: Terraform plan
         run: |
           terraform plan -out=tfplan \
-            -var="template_key=${{ github.event.inputs.template_key }}" \
-            -var="subscription_id=${{ github.event.inputs.subscription_id }}" \
-            -var="environment=${{ github.event.inputs.environment }}" \
-            -var="location=${{ github.event.inputs.location }}" \
-            -var="resource_group_name=${{ github.event.inputs.resource_group_name }}" \
-            -var="resource_name=${{ github.event.inputs.resource_name }}" \
-            -var="sku_or_size=${{ github.event.inputs.sku_or_size }}" \
-            -var="owner=${{ github.event.inputs.owner }}" \
-            -var="cost_center=${{ github.event.inputs.cost_center }}" \
-            -var="request_id=${{ github.event.inputs.request_id }}"
+            -var="template_key=${{ inputs.template_key }}" \
+            -var="subscription_id=${{ inputs.subscription_id }}" \
+            -var="environment=${{ inputs.environment }}" \
+            -var="location=${{ inputs.location }}" \
+            -var="resource_group_name=${{ inputs.resource_group_name }}" \
+            -var="resource_name=${{ inputs.resource_name }}" \
+            -var="sku_or_size=${{ inputs.sku_or_size }}" \
+            -var="owner=${{ inputs.owner }}" \
+            -var="cost_center=${{ inputs.cost_center }}" \
+            -var="request_id=${{ inputs.request_id }}"
 
       - name: Terraform apply
         run: terraform apply -auto-approve tfplan
@@ -98,8 +104,9 @@ jobs:
         if: always()
         run: |
           echo "## Provisioning Result" >> $GITHUB_STEP_SUMMARY
-          echo "- Request: ${{ github.event.inputs.request_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Template: ${{ github.event.inputs.template_key }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Environment: ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Resource: ${{ github.event.inputs.resource_name }}" >> $GITHUB_STEP_SUMMARY
-          
+          echo "- **Request:** ${{ inputs.request_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Template:** ${{ inputs.template_key }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Subscription:** ${{ inputs.subscription_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Resource:** ${{ inputs.resource_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Location:** ${{ inputs.location }}" >> $GITHUB_STEP_SUMMARY
