@@ -55,8 +55,8 @@ module "aks" {
 
 locals {
   resource_id = (
-    var.template_key == "resource-group"  ? module.resource_group[0].resource_group_id  :
-    var.template_key == "vm-linux"        ? module.vm_linux[0].vm_id                    :
+    var.template_key == "resource-group" ? module.resource_group[0].resource_group_id :
+    var.template_key == "vm-linux" ? module.vm_linux[0].vm_id :
     var.template_key == "storage-account" ? module.storage_account[0].storage_account_id :
     module.aks[0].aks_id
   )

@@ -34,8 +34,8 @@ variable "cost_center" {
   type = string
 }
 
-variable "request_id" {  
-  type    = string  
+variable "request_id" {
+  type    = string
   default = ""
 }
 
