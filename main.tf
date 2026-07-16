@@ -53,11 +53,25 @@ module "aks" {
   tags                = local.common_tags
 }
 
+module "vm_windows" {
+  source = "./modules/vm-windows"
+  count  = var.template_key == "vm-windows" ? 1 : 0
+
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  vm_name             = var.resource_name
+  vm_size             = var.sku_or_size
+  admin_username      = "azureadmin"
+  tags                = local.common_tags
+}
+
 locals {
   resource_id = (
-    var.template_key == "resource-group" ? module.resource_group[0].resource_group_id :
-    var.template_key == "vm-linux" ? module.vm_linux[0].vm_id :
+    var.template_key == "resource-group"  ? module.resource_group[0].resource_group_id  :
+    var.template_key == "vm-linux"        ? module.vm_linux[0].vm_id                    :
+    var.template_key == "vm-windows"      ? module.vm_windows[0].vm_id                  :
     var.template_key == "storage-account" ? module.storage_account[0].storage_account_id :
     module.aks[0].aks_id
   )
 }
+
