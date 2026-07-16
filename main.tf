@@ -65,12 +65,23 @@ module "vm_windows" {
   tags                = local.common_tags
 }
 
+module "key_vault" {
+  source = "./modules/key-vault"
+  count  = var.template_key == "key-vault" ? 1 : 0
+
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  key_vault_name      = var.resource_name
+  sku_name            = var.sku_or_size == "premium" ? "premium" : "standard"
+  tags                = local.common_tags
+}
 locals {
   resource_id = (
     var.template_key == "resource-group"  ? module.resource_group[0].resource_group_id  :
     var.template_key == "vm-linux"        ? module.vm_linux[0].vm_id                    :
     var.template_key == "vm-windows"      ? module.vm_windows[0].vm_id                  :
     var.template_key == "storage-account" ? module.storage_account[0].storage_account_id :
+    var.template_key == "key-vault"       ? module.key_vault[0].key_vault_id            :
     module.aks[0].aks_id
   )
 }
