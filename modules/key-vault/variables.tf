@@ -38,9 +38,9 @@ variable "sku_name" {
 }
 
 variable "enable_rbac_authorization" {
-  description = "Use Azure RBAC for data-plane access (recommended). If false, uses legacy access policies."
+  description = "Use Azure RBAC for data-plane access. If false, uses legacy access policies."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "purge_protection_enabled" {
@@ -110,9 +110,22 @@ variable "enabled_for_template_deployment" {
 }
 
 variable "grant_admin_to_current_user" {
-  description = "Assign the caller (workflow SP / user) 'Key Vault Administrator' role so they can immediately manage secrets"
+  description = "Grant the caller full access to secrets/keys/certs via access policy"
   type        = bool
   default     = true
+}
+
+variable "additional_access_policies" {
+  description = "Additional access policies to add to the vault. Each item must include object_id and permission sets."
+  type = list(object({
+    object_id               = string
+    tenant_id               = optional(string)
+    secret_permissions      = optional(list(string), [])
+    key_permissions         = optional(list(string), [])
+    certificate_permissions = optional(list(string), [])
+    storage_permissions     = optional(list(string), [])
+  }))
+  default = []
 }
 
 variable "tags" {

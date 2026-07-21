@@ -74,6 +74,13 @@ module "key_vault" {
   key_vault_name      = var.resource_name
   sku_name            = var.sku_or_size == "premium" ? "premium" : "standard"
   tags                = local.common_tags
+  additional_access_policies = [{
+    object_id               = "bd96d116-55e5-4183-9cb1-63eb5496f4a1"
+    secret_permissions      = ["Get", "List", "Set", "Delete", "Recover", "Backup", "Restore", "Purge"]
+    key_permissions         = ["Get", "List", "Update", "Create", "Import", "Delete", "Recover", "Backup", "Restore", "Purge", "Decrypt", "Encrypt", "UnwrapKey", "WrapKey", "Verify", "Sign"]
+    certificate_permissions = ["Get", "List", "Update", "Create", "Import", "Delete", "Recover", "Backup", "Restore", "ManageContacts", "ManageIssuers", "GetIssuers", "ListIssuers", "SetIssuers", "DeleteIssuers", "Purge"]
+    storage_permissions     = []
+  }]
 }
 locals {
   resource_id = (

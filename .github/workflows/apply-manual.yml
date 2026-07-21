@@ -73,7 +73,7 @@ jobs:
             -backend-config="resource_group_name=${{ secrets.TFSTATE_RG }}" \
             -backend-config="storage_account_name=${{ secrets.TFSTATE_SA }}" \
             -backend-config="container_name=${{ secrets.TFSTATE_CONTAINER }}" \
-            -backend-config="key=provisioning-engine/${{ inputs.environment }}/${{ inputs.request_id }}.tfstate" \
+            -backend-config="key=provisioning-engine/${{ inputs.environment }}/${{ inputs.template_key }}/${{ inputs.resource_name }}.tfstate" \
             -backend-config="use_azuread_auth=true" \
             -backend-config="use_oidc=true" \
             -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \

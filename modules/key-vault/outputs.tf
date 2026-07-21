@@ -18,7 +18,7 @@ output "tenant_id" {
   value       = azurerm_key_vault.this.tenant_id
 }
 
-output "rbac_enabled" {
-  description = "Whether RBAC authorization is enabled"
-  value       = azurerm_key_vault.this.enable_rbac_authorization
+output "auth_model" {
+  description = "Authorization model in use"
+  value       = var.enable_rbac_authorization ? "rbac" : "access-policy"
 }
