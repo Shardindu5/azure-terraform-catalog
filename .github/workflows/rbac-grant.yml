@@ -1,0 +1,108 @@
+name: Grant RBAC Access
+
+run-name: "${{ inputs.request_id }} • rbac-grant • ${{ inputs.environment }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "Request ID"
+        required: true
+      subscription_id:
+        description: "Azure subscription ID"
+        required: true
+      environment:
+        description: "dev | test | stage | prod"
+        required: true
+      scope:
+        description: "Full Azure resource ID scope"
+        required: true
+      role:
+        description: "Azure role name (e.g. 'Reader')"
+        required: true
+      principal_id:
+        description: "Object ID of principal to grant"
+        required: true
+      principal_type:
+        description: "User | Group | ServicePrincipal"
+        required: true
+      grant_description:
+        description: "Description text"
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+env:
+  ARM_USE_OIDC: "true"
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ inputs.subscription_id }}
+
+jobs:
+  rbac:
+    name: Terraform apply RBAC
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: access
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ inputs.subscription_id }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TFSTATE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TFSTATE_SA }}" \
+            -backend-config="container_name=${{ secrets.TFSTATE_CONTAINER }}" \
+            -backend-config="key=provisioning-engine/${{ inputs.environment }}/rbac/${{ inputs.request_id }}.tfstate" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.TFSTATE_SUBSCRIPTION_ID }}"
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        run: |
+          terraform plan -out=tfplan \
+            -var="request_id=${{ inputs.request_id }}" \
+            -var="subscription_id=${{ inputs.subscription_id }}" \
+            -var="environment=${{ inputs.environment }}" \
+            -var="scope=${{ inputs.scope }}" \
+            -var="role=${{ inputs.role }}" \
+            -var="principal_id=${{ inputs.principal_id }}" \
+            -var="principal_type=${{ inputs.principal_type }}" \
+            -var="description=${{ inputs.grant_description }}"
+
+      - name: Terraform apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## RBAC Grant" >> $GITHUB_STEP_SUMMARY
+          echo "- **Request:** ${{ inputs.request_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Role:** ${{ inputs.role }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Principal:** ${{ inputs.principal_id }} (${{ inputs.principal_type }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Scope:** ${{ inputs.scope }}" >> $GITHUB_STEP_SUMMARY
